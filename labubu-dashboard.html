@@ -1,0 +1,1727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Labubu 价格行情</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ─── CSS Variables ─── */
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #0f0f18;
+      --bg-card: rgba(15, 15, 28, 0.85);
+      --bg-card-hover: rgba(20, 20, 38, 0.95);
+
+      --accent: #f5a623;
+      --accent-dim: rgba(245, 166, 35, 0.12);
+      --accent-glow: rgba(245, 166, 35, 0.35);
+
+      --up: #ff4d6d;
+      --up-dim: rgba(255, 77, 109, 0.12);
+      --down: #00e5a0;
+      --down-dim: rgba(0, 229, 160, 0.12);
+      --neutral: #7a7a9a;
+
+      --text-primary: #f0f0fa;
+      --text-secondary: #9090b0;
+      --text-muted: #5a5a7a;
+
+      --border: rgba(255, 255, 255, 0.06);
+      --border-accent: rgba(245, 166, 35, 0.3);
+
+      --radius: 14px;
+      --radius-sm: 8px;
+
+      --font-display: 'Bebas Neue', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-body: 'Inter', sans-serif;
+    }
+
+    /* ─── Reset & Base ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Ambient glow blobs */
+    body::after {
+      content: '';
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(245, 166, 35, 0.04) 0%, transparent 70%);
+      top: -200px;
+      left: -200px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── Layout Containers ─── */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ─── Header ─── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 10, 15, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .logo-title {
+      font-family: var(--font-display);
+      font-size: 28px;
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-shadow: 0 0 24px var(--accent-glow);
+    }
+
+    .logo-sub {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: auto;
+      flex-wrap: wrap;
+    }
+
+    /* Date Inputs */
+    .date-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 12px;
+    }
+
+    .date-group label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .date-group input[type="date"] {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+      color-scheme: dark;
+    }
+
+    .btn-refresh {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-dim);
+      border: 1px solid var(--border-accent);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 7px 16px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-refresh:hover {
+      background: rgba(245, 166, 35, 0.2);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .btn-refresh:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-refresh svg {
+      transition: transform 0.6s;
+    }
+
+    .btn-refresh.loading svg {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Search Bar ─── */
+    .search-wrap {
+      position: relative;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    #search-input {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 13px;
+      padding: 7px 12px 7px 32px;
+      width: 180px;
+      outline: none;
+      transition: border-color 0.2s, width 0.3s;
+    }
+
+    #search-input::placeholder { color: var(--text-muted); }
+    #search-input:focus {
+      border-color: var(--border-accent);
+      width: 220px;
+    }
+
+    /* ─── Tab Bar ─── */
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+
+    .tab-btn {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 1px;
+      padding: 5px 14px;
+      border-radius: 5px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #000;
+      font-weight: bold;
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    /* ─── Stats Overview Bar ─── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 24px 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 32px;
+      letter-spacing: 1px;
+      color: var(--text-primary);
+    }
+
+    .stat-value.up { color: var(--up); text-shadow: 0 0 12px rgba(255,77,109,0.4); }
+    .stat-value.down { color: var(--down); text-shadow: 0 0 12px rgba(0,229,160,0.4); }
+    .stat-value.accent { color: var(--accent); text-shadow: 0 0 12px var(--accent-glow); }
+
+    .stat-sub {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ─── Cards Grid ─── */
+    .cards-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .cards-count {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+      padding-bottom: 40px;
+    }
+
+    /* ─── SPU Card ─── */
+    .spu-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+      cursor: default;
+      animation: cardIn 0.4s ease both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .spu-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(245,166,35,0.3), transparent);
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .spu-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(245, 166, 35, 0.2);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px var(--accent-glow);
+    }
+
+    /* Staggered animation delay */
+    .spu-card:nth-child(1)  { animation-delay: 0.00s; }
+    .spu-card:nth-child(2)  { animation-delay: 0.04s; }
+    .spu-card:nth-child(3)  { animation-delay: 0.08s; }
+    .spu-card:nth-child(4)  { animation-delay: 0.12s; }
+    .spu-card:nth-child(5)  { animation-delay: 0.16s; }
+    .spu-card:nth-child(6)  { animation-delay: 0.20s; }
+    .spu-card:nth-child(7)  { animation-delay: 0.24s; }
+    .spu-card:nth-child(8)  { animation-delay: 0.28s; }
+    .spu-card:nth-child(9)  { animation-delay: 0.32s; }
+    .spu-card:nth-child(10) { animation-delay: 0.36s; }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      gap: 8px;
+    }
+
+    .card-name {
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.35;
+      flex: 1;
+    }
+
+    .card-type-badge {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 1px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.06);
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .card-price-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      gap: 8px;
+    }
+
+    .card-price {
+      font-family: var(--font-mono);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+    }
+
+    .card-price .currency {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-right: 2px;
+    }
+
+    .change-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .change-badge.up {
+      background: var(--up-dim);
+      color: var(--up);
+      border: 1px solid rgba(255,77,109,0.2);
+    }
+
+    .change-badge.down {
+      background: var(--down-dim);
+      color: var(--down);
+      border: 1px solid rgba(0,229,160,0.2);
+    }
+
+    .change-badge.neutral {
+      background: rgba(255,255,255,0.04);
+      color: var(--neutral);
+      border: 1px solid var(--border);
+    }
+
+    /* Sub-prices row */
+    .card-sub-prices {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .sub-price-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .sub-price-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+
+    .sub-price-value {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* Chart area */
+    .card-chart {
+      position: relative;
+      height: 90px;
+      margin-top: 6px;
+    }
+
+    .card-chart canvas {
+      border-radius: 6px;
+    }
+
+    .chart-no-data {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 90px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.02);
+      border-radius: 6px;
+      border: 1px dashed var(--border);
+    }
+
+    /* ─── Loading / Error / Empty States ─── */
+    .state-overlay {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 20px;
+      gap: 16px;
+    }
+
+    .state-overlay.hidden { display: none; }
+
+    .loading-ring {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(245,166,35,0.15);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .state-text {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .state-sub {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+
+    .error-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+
+    /* ─── Scrollbar ─── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: rgba(245,166,35,0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(245,166,35,0.4); }
+
+    /* ─── View Toggle ─── */
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+    .view-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 26px;
+      border-radius: 5px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .view-btn.active {
+      background: var(--accent);
+      color: #000;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    /* ─── List Toolbar ─── */
+    .list-toolbar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .list-toolbar.visible { display: flex; }
+
+    .sort-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .sort-chip:hover { border-color: var(--border-accent); color: var(--text-primary); }
+    .sort-chip.active {
+      background: var(--accent-dim);
+      border-color: var(--border-accent);
+      color: var(--accent);
+    }
+    .sort-arrow { font-size: 9px; }
+
+    /* ─── List View ─── */
+    .list-view {
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      padding-bottom: 40px;
+    }
+    .list-view.visible { display: flex; }
+
+    .list-row {
+      display: grid;
+      grid-template-columns: 2fr 80px 110px 90px 90px 80px 80px 80px;
+      align-items: center;
+      gap: 0;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      animation: cardIn 0.3s ease both;
+    }
+    .list-row:hover {
+      border-color: rgba(245,166,35,0.2);
+      background: var(--bg-card-hover);
+    }
+    .list-row.list-header {
+      cursor: default;
+      background: rgba(255,255,255,0.02);
+      border-color: var(--border);
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 4px;
+      animation: none;
+    }
+    .list-row.list-header:hover { background: rgba(255,255,255,0.02); border-color: var(--border); }
+
+    .list-cell {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-primary);
+      padding: 0 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .list-cell:first-child { padding-left: 0; }
+
+    .list-cell.col-name {
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .list-cell.col-num { text-align: right; }
+    .list-cell.col-badge { text-align: right; }
+
+    .list-header .list-cell {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+    .list-header .list-cell:first-child { justify-content: flex-start; }
+    .list-header .list-cell:hover { color: var(--text-primary); }
+    .list-header .list-cell.sort-active { color: var(--accent); }
+
+    .inline-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .inline-badge.up   { color: var(--up); }
+    .inline-badge.down { color: var(--down); }
+    .inline-badge.neutral { color: var(--text-muted); }
+
+    .list-fold-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      background: rgba(245,166,35,0.06);
+      border: 1px dashed var(--border-accent);
+      border-radius: var(--radius-sm);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.2s;
+    }
+    .list-fold-btn:hover { background: rgba(245,166,35,0.12); }
+
+    /* ─── Card expand hint ─── */
+    .card-expand-hint {
+      margin-top: 10px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: right;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .spu-card:hover .card-expand-hint { opacity: 1; }
+
+    /* ─── Folded cards ─── */
+    .card-folded { display: none; }
+
+    /* ─── Fold button ─── */
+    .fold-btn {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(245,166,35,0.06);
+      border: 1px dashed var(--border-accent);
+      border-radius: var(--radius);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .fold-btn:hover { background: rgba(245,166,35,0.12); }
+
+    /* ─── Detail Modal ─── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(6px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.15s ease;
+    }
+    .modal-overlay.hidden { display: none; }
+    @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+    .modal-box {
+      background: #12121e;
+      border: 1px solid rgba(245,166,35,0.25);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 560px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6), 0 0 40px rgba(245,166,35,0.08);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .modal-title {
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .modal-close:hover { color: var(--text-primary); }
+
+    .modal-body {
+      overflow-y: auto;
+      padding: 16px 20px;
+      flex: 1;
+    }
+
+    .modal-section {
+      margin-bottom: 20px;
+    }
+
+    .modal-section-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+    }
+
+    .modal-field-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+
+    .modal-field-value {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .modal-field-value.up   { color: var(--up); }
+    .modal-field-value.down { color: var(--down); }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 768px) {
+      .header-inner { gap: 10px; }
+      .header-controls { width: 100%; }
+      .logo-title { font-size: 22px; }
+      .cards-grid { grid-template-columns: 1fr; }
+      #search-input { width: 140px; }
+      #search-input:focus { width: 160px; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ─── Header ─── -->
+  <header>
+    <div class="container">
+      <div class="header-inner">
+        <div class="logo-area">
+          <span class="logo-title">LABUBU</span>
+          <span class="logo-sub">市场行情</span>
+        </div>
+
+        <div class="tab-bar">
+          <button class="tab-btn active" data-type="C2C">C2C</button>
+          <button class="tab-btn" data-type="EXCHANGE">EXCHANGE</button>
+        </div>
+
+        <div class="header-controls">
+          <div class="search-wrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input type="text" id="search-input" placeholder="搜索款式..." />
+          </div>
+          <div class="view-toggle">
+            <button class="view-btn active" id="view-grid" title="卡片视图">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+              </svg>
+            </button>
+            <button class="view-btn" id="view-list" title="列表视图">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Main Content ─── -->
+  <main>
+    <div class="container">
+
+      <!-- Stats Overview -->
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-label">款式总数</div>
+          <div class="stat-value accent" id="stat-total">—</div>
+          <div class="stat-sub">当前筛选结果</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最高涨幅</div>
+          <div class="stat-value up" id="stat-top-up">—</div>
+          <div class="stat-sub" id="stat-top-up-name">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大跌幅</div>
+          <div class="stat-value down" id="stat-top-down">—</div>
+          <div class="stat-sub" id="stat-top-down-name">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">数据时间</div>
+          <div class="stat-value accent" style="font-size:16px; padding-top:8px;" id="stat-date-range">—</div>
+          <div class="stat-sub" id="stat-update-time">—</div>
+        </div>
+      </div>
+
+      <!-- Cards / List header -->
+      <div class="cards-header">
+        <div class="cards-count" id="cards-count"></div>
+      </div>
+
+      <!-- List sort toolbar (only visible in list view) -->
+      <div class="list-toolbar" id="list-toolbar">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:1px">排序：</span>
+        <div class="sort-chip active" data-col="latestVol3d">3D成交量 <span class="sort-arrow">↓</span></div>
+        <div class="sort-chip" data-col="latestPrice">3D均价 <span class="sort-arrow"></span></div>
+        <div class="sort-chip" data-col="changePercent">同比涨跌 <span class="sort-arrow"></span></div>
+        <div class="sort-chip" data-col="volChange">成交量环比 <span class="sort-arrow"></span></div>
+        <div class="sort-chip" data-col="latest30d">30D均价 <span class="sort-arrow"></span></div>
+        <div class="sort-chip" data-col="latest365d">365D均价 <span class="sort-arrow"></span></div>
+        <div class="sort-chip" data-col="name">名称 <span class="sort-arrow"></span></div>
+      </div>
+
+      <!-- Loading State -->
+      <div class="state-overlay" id="state-loading">
+        <div class="loading-ring"></div>
+        <div class="state-text" id="loading-msg">正在获取数据...</div>
+        <div class="state-sub" id="loading-sub"></div>
+      </div>
+
+      <!-- Error State -->
+      <div class="state-overlay hidden" id="state-error">
+        <div class="error-icon">⚠️</div>
+        <div class="state-text" id="error-msg">数据加载失败</div>
+        <div class="state-sub" id="error-sub"></div>
+      </div>
+
+      <!-- Empty State -->
+      <div class="state-overlay hidden" id="state-empty">
+        <div class="error-icon">🔍</div>
+        <div class="state-text">未找到匹配款式</div>
+        <div class="state-sub">请尝试调整搜索词或日期范围</div>
+      </div>
+
+      <!-- Cards Grid -->
+      <div class="cards-grid" id="cards-grid"></div>
+
+      <!-- List View -->
+      <div class="list-view" id="list-view"></div>
+
+    </div>
+  </main>
+
+  <!-- ─── Detail Modal ─── -->
+  <div class="modal-overlay hidden" id="modal-overlay">
+    <div class="modal-box" id="modal-box">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title">款式详情</div>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ─── Constants ─── */
+    // 数据从 data.json 读取，由 GitHub Actions 每天定时生成
+
+    /* ─── State ─── */
+    let allData      = [];
+    let chartInstances = {};
+    let activeType   = 'C2C';
+    let searchQuery  = '';
+    let isLoading    = false;
+    let activeView   = 'grid';
+    let sortKey      = 'latestVol3d';
+    let sortDir      = -1;
+
+    /* ─── Load from data.json ─── */
+    async function loadFromJson() {
+      if (isLoading) return;
+      isLoading = true;
+      showState('loading');
+      setLoadingMsg('正在加载数据...');
+
+      try {
+        const resp = await fetch('./data.json');
+        if (!resp.ok) throw new Error(`无法读取 data.json (HTTP ${resp.status})`);
+        const json = await resp.json();
+
+        allData = json.rows || [];
+
+        const updatedAt = new Date(json.updated_at);
+        const localTime = updatedAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        document.getElementById('stat-date-range').textContent =
+          `${(json.date_start || '').slice(5)} ~ ${(json.date_end || '').slice(5)}`;
+        document.getElementById('stat-update-time').textContent =
+          `共 ${json.row_count ?? allData.length} 条，更新于 ${localTime}`;
+
+        applyFilters();
+      } catch (err) {
+        console.error(err);
+        showState('error');
+        document.getElementById('error-msg').textContent = '数据加载失败';
+        document.getElementById('error-sub').textContent = err.message;
+      } finally {
+        isLoading = false;
+      }
+    }
+
+    /* ─── Data Processing ─── */
+    function processData(rows, tradingType) {
+      const filtered = rows.filter(r =>
+        (r.trading_type || '').toUpperCase() === tradingType.toUpperCase()
+      );
+
+      const groups = {};
+
+      for (const row of filtered) {
+        const id = row.spu_id;
+        if (!groups[id]) {
+          groups[id] = {
+            spu_id      : id,
+            name        : row.name || `SPU ${id}`,
+            trading_type: row.trading_type,
+            days        : []
+          };
+        }
+
+        groups[id].days.push({
+          dateKey                   : String(row.day).slice(0, 10), // "2026-02-12"
+          avg_price_1days           : parseFloat(row.avg_price_1days) || 0,
+          avg_price_1days_yoy       : row.avg_price_1days_yoy != null ? parseFloat(row.avg_price_1days_yoy) : null,
+          avg_price_3days           : parseFloat(row.avg_price_3days) || 0,
+          avg_price_3days_yoy       : row.avg_price_3days_yoy != null ? parseFloat(row.avg_price_3days_yoy) : null,
+          avg_price_30days          : parseFloat(row.avg_price_30days) || 0,
+          avg_price_30days_yoy      : row.avg_price_30days_yoy != null ? parseFloat(row.avg_price_30days_yoy) : null,
+          avg_price_60days          : parseFloat(row.avg_price_60days) || 0,
+          avg_price_60days_yoy      : row.avg_price_60days_yoy != null ? parseFloat(row.avg_price_60days_yoy) : null,
+          avg_price_365days         : parseFloat(row.avg_price_365days) || 0,
+          avg_price_365days_yoy     : row.avg_price_365days_yoy != null ? parseFloat(row.avg_price_365days_yoy) : null,
+          avg_price_alldays         : parseFloat(row.avg_price_alldays) || 0,
+          product_quantity_1days    : parseInt(row.product_quantity_1days) || 0,
+          product_quantity_3days    : parseInt(row.product_quantity_3days) || 0,
+          product_quantity_30days   : parseInt(row.product_quantity_30days) || 0,
+          product_quantity_365days  : parseInt(row.product_quantity_365days) || 0,
+          product_quantity_alldays  : parseInt(row.product_quantity_alldays) || 0,
+          trading_volume_1days      : parseInt(row.trading_volume_1days) || 0,
+          trading_volume_3days      : parseInt(row.trading_volume_3days) || 0,
+          trading_volume_30days     : parseInt(row.trading_volume_30days) || 0,
+          trading_volume_365days    : parseInt(row.trading_volume_365days) || 0,
+          trading_volume_alldays    : parseInt(row.trading_volume_alldays) || 0,
+          region                    : row.region || '',
+        });
+      }
+
+      // Sort days and compute change
+      for (const id in groups) {
+        const g = groups[id];
+        g.days.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+        const n = g.days.length;
+        if (n === 0) {
+          g.latestPrice    = 0;
+          g.changePercent  = null;
+          g.volChange      = null;
+          g.latest3d       = 0;
+          g.latest30d      = 0;
+          g.latest365d     = 0;
+          g.latestVol3d    = 0;
+          g.latestVol30d   = 0;
+          g.latestAlldays  = null;
+        } else {
+          const last       = g.days[n - 1];
+          const prev       = n >= 2 ? g.days[n - 2] : null;
+          g.latestPrice    = last.avg_price_3days;
+          g.latest3d       = last.avg_price_3days;
+          g.latest30d      = last.avg_price_30days;
+          g.latest365d     = last.avg_price_365days;
+          g.latestVol3d    = last.trading_volume_3days;
+          g.latestVol30d   = last.trading_volume_30days;
+          g.latestAlldays  = last;
+
+          // 均价同比（API 预算）
+          const yoy = last.avg_price_3days > 0 && last.avg_price_3days_yoy !== null
+            ? last.avg_price_3days_yoy * 100
+            : null;
+          g.changePercent  = yoy;
+
+          // 成交量环比（当日 vs 前一日）
+          if (prev && prev.trading_volume_3days > 0) {
+            g.volChange = ((last.trading_volume_3days - prev.trading_volume_3days) / prev.trading_volume_3days) * 100;
+          } else {
+            g.volChange = null;
+          }
+        }
+
+        // Chart data: use avg_price_3days curve
+        g.chartLabels = g.days.map(d => d.dateKey.slice(5)); // MM-DD
+        g.chartPrices = g.days.map(d => d.avg_price_3days);
+      }
+
+      return Object.values(groups);
+    }
+
+    /* ─── Render ─── */
+    function formatPrice(v) {
+      if (!v || v === 0) return '—';
+      return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function changeBadgeHTML(pct) {
+      if (pct === null || pct === undefined) {
+        return `<span class="change-badge neutral">同比 —</span>`;
+      }
+      const isUp  = pct >= 0;
+      const cls   = isUp ? 'up' : 'down';
+      const arrow = isUp ? '▲' : '▼';
+      const sign  = isUp ? '+' : '';
+      return `<span class="change-badge ${cls}">${arrow} 同比 ${sign}${pct.toFixed(2)}%</span>`;
+    }
+
+    function renderCards(groups) {
+      const grid = document.getElementById('cards-grid');
+
+      // Destroy old charts
+      for (const id in chartInstances) {
+        chartInstances[id].destroy();
+      }
+      chartInstances = {};
+      grid.innerHTML = '';
+
+      const visible = getSortedVisible(groups);
+
+      // Update stats
+      updateStats(visible);
+      document.getElementById('cards-count').textContent =
+        `显示 ${visible.length} / ${groups.length} 款`;
+
+      if (visible.length === 0) {
+        showState('empty');
+        return;
+      }
+
+      showState('none');
+
+      const FOLD_AT = 200;
+
+      visible.forEach((g, i) => {
+        const canvasId = `chart-${g.spu_id}-${i}`;
+        const card = document.createElement('div');
+        card.className = 'spu-card';
+        if (i >= FOLD_AT) card.classList.add('card-folded');
+
+        const hasChart = g.chartPrices.length > 1;
+
+        card.innerHTML = `
+          <div class="card-top">
+            <div class="card-name">${escHtml(g.name)}</div>
+            <span class="card-type-badge">${escHtml(g.trading_type)}</span>
+          </div>
+          <div class="card-price-row">
+            <div class="card-price">
+              <span class="currency">¥</span>
+              <span class="price-num" data-target="${g.latestPrice}">${formatPrice(g.latestPrice)}</span>
+            </div>
+            ${changeBadgeHTML(g.changePercent)}
+          </div>
+          <div class="card-sub-prices">
+            <div class="sub-price-item">
+              <span class="sub-price-label">30D AVG</span>
+              <span class="sub-price-value">¥${formatPrice(g.latest30d)}</span>
+            </div>
+            <div class="sub-price-item">
+              <span class="sub-price-label">365D AVG</span>
+              <span class="sub-price-value">¥${formatPrice(g.latest365d)}</span>
+            </div>
+            <div class="sub-price-item">
+              <span class="sub-price-label">3D 成交量</span>
+              <span class="sub-price-value">${g.latestVol3d > 0 ? g.latestVol3d : '—'}</span>
+            </div>
+          </div>
+          <div class="card-chart">
+            ${hasChart
+              ? `<canvas id="${canvasId}"></canvas>`
+              : `<div class="chart-no-data">数据不足，无法绘制曲线</div>`}
+          </div>
+          <div class="card-expand-hint">点击查看全部字段 ↗</div>
+        `;
+
+        card.addEventListener('click', () => openDetailModal(g));
+        grid.appendChild(card);
+
+        if (hasChart) {
+          requestAnimationFrame(() => renderChart(canvasId, g.chartLabels, g.chartPrices, g.changePercent));
+        }
+      });
+
+      // 折叠按钮
+      if (visible.length > FOLD_AT) {
+        const foldBtn = document.createElement('div');
+        foldBtn.id = 'fold-btn';
+        foldBtn.className = 'fold-btn';
+        foldBtn.textContent = `展开全部 ${visible.length} 款 ▼`;
+        foldBtn.addEventListener('click', () => {
+          grid.querySelectorAll('.card-folded').forEach(c => c.classList.remove('card-folded'));
+          foldBtn.remove();
+        });
+        grid.appendChild(foldBtn);
+      }
+    }
+
+    function renderChart(canvasId, labels, prices, changePct) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+
+      const isUp  = changePct === null ? true : changePct >= 0;
+      const color = isUp ? '#ff4d6d' : '#00e5a0';
+      const glow  = isUp ? 'rgba(255,77,109,0.6)' : 'rgba(0,229,160,0.6)';
+
+      const ctx = canvas.getContext('2d');
+
+      // Gradient fill
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 90);
+      grad.addColorStop(0, isUp ? 'rgba(255,77,109,0.25)' : 'rgba(0,229,160,0.25)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+      const instance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data           : prices,
+            borderColor    : color,
+            borderWidth    : 2,
+            pointRadius    : 0,
+            pointHoverRadius: 4,
+            pointHoverBackgroundColor: color,
+            fill           : true,
+            backgroundColor: grad,
+            tension        : 0.4,
+          }]
+        },
+        options: {
+          responsive : true,
+          maintainAspectRatio: false,
+          animation  : { duration: 600, easing: 'easeOutQuart' },
+          plugins    : {
+            legend : { display: false },
+            tooltip: {
+              mode       : 'index',
+              intersect  : false,
+              backgroundColor: 'rgba(10,10,15,0.9)',
+              borderColor: color,
+              borderWidth: 1,
+              titleFont  : { family: 'JetBrains Mono', size: 11 },
+              bodyFont   : { family: 'JetBrains Mono', size: 12 },
+              callbacks  : {
+                title: items => items[0].label,
+                label: item  => ` ¥${Number(item.raw).toLocaleString()}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              display: false,
+              grid   : { display: false }
+            },
+            y: {
+              display: false,
+              grid   : { display: false }
+            }
+          },
+          elements: {
+            line: {
+              borderCapStyle : 'round',
+              borderJoinStyle: 'round',
+            }
+          }
+        }
+      });
+
+      chartInstances[canvasId] = instance;
+    }
+
+    /* ─── Stats ─── */
+    function updateStats(groups) {
+      document.getElementById('stat-total').textContent = groups.length;
+
+      const withChange = groups.filter(g => g.changePercent !== null);
+
+      if (withChange.length === 0) {
+        document.getElementById('stat-top-up').textContent   = '—';
+        document.getElementById('stat-top-up-name').textContent = '—';
+        document.getElementById('stat-top-down').textContent = '—';
+        document.getElementById('stat-top-down-name').textContent = '—';
+        return;
+      }
+
+      const sorted = [...withChange].sort((a, b) => b.changePercent - a.changePercent);
+      const topUp  = sorted[0];
+      const topDown = sorted[sorted.length - 1];
+
+      document.getElementById('stat-top-up').textContent =
+        topUp.changePercent >= 0 ? `+${topUp.changePercent.toFixed(1)}%` : `${topUp.changePercent.toFixed(1)}%`;
+      document.getElementById('stat-top-up-name').textContent = topUp.name;
+
+      document.getElementById('stat-top-down').textContent =
+        `${topDown.changePercent.toFixed(1)}%`;
+      document.getElementById('stat-top-down-name').textContent = topDown.name;
+    }
+
+    /* ─── State management ─── */
+    function showState(state) {
+      document.getElementById('state-loading').classList.toggle('hidden', state !== 'loading');
+      document.getElementById('state-error').classList.toggle('hidden',   state !== 'error');
+      document.getElementById('state-empty').classList.toggle('hidden',   state !== 'empty');
+      const isNone = state === 'none';
+      document.getElementById('cards-grid').style.display = (isNone && activeView === 'grid') ? '' : 'none';
+      document.getElementById('list-view').classList.toggle('visible',    isNone && activeView === 'list');
+    }
+
+    function setLoadingMsg(msg, sub = '') {
+      document.getElementById('loading-msg').textContent = msg;
+      document.getElementById('loading-sub').textContent = sub;
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /* ─── Shared sort + filter ─── */
+    function getSortedVisible(groups) {
+      const query = searchQuery.trim().toLowerCase();
+      const visible = query
+        ? groups.filter(g => g.name.toLowerCase().includes(query))
+        : [...groups];
+
+      visible.sort((a, b) => {
+        const av = a[sortKey] ?? (sortDir === -1 ? -Infinity : Infinity);
+        const bv = b[sortKey] ?? (sortDir === -1 ? -Infinity : Infinity);
+        if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+        return sortDir * (av - bv);
+      });
+      return visible;
+    }
+
+    function applyFilters() {
+      const groups = processData(allData, activeType);
+      if (activeView === 'list') {
+        renderList(groups);
+      } else {
+        renderCards(groups);
+      }
+    }
+
+    /* ─── List View Renderer ─── */
+    function fmtInlinePct(v) {
+      if (v === null || v === undefined) return { text: '—', cls: 'neutral' };
+      const sign = v >= 0 ? '+' : '';
+      return { text: `${sign}${v.toFixed(1)}%`, cls: v >= 0 ? 'up' : 'down' };
+    }
+
+    const LIST_COLS = [
+      { key: 'name',          label: '款式名称',   align: '' },
+      { key: 'latestVol3d',   label: '3D成交量',   align: 'col-num' },
+      { key: 'volChange',     label: '成交量环比',  align: 'col-badge' },
+      { key: 'latestPrice',   label: '3D均价',     align: 'col-num' },
+      { key: 'changePercent', label: '均价同比',    align: 'col-badge' },
+      { key: 'latest30d',     label: '30D均价',    align: 'col-num' },
+      { key: 'latest365d',    label: '365D均价',   align: 'col-num' },
+      { key: 'latestVol30d',  label: '30D成交量',  align: 'col-num' },
+    ];
+
+    function renderList(groups) {
+      const listEl = document.getElementById('list-view');
+      listEl.innerHTML = '';
+
+      const visible = getSortedVisible(groups);
+      updateStats(visible);
+      document.getElementById('cards-count').textContent =
+        `显示 ${visible.length} / ${groups.length} 款`;
+
+      if (visible.length === 0) { showState('empty'); return; }
+      showState('none');
+
+      // Header row
+      const header = document.createElement('div');
+      header.className = 'list-row list-header';
+      header.innerHTML = LIST_COLS.map(c => `
+        <div class="list-cell ${c.align} ${sortKey === c.key ? 'sort-active' : ''}"
+             data-col="${c.key}">
+          ${c.label}
+          ${sortKey === c.key ? `<span>${sortDir === -1 ? '↓' : '↑'}</span>` : ''}
+        </div>
+      `).join('');
+      header.querySelectorAll('.list-cell[data-col]').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const col = cell.dataset.col;
+          if (sortKey === col) { sortDir *= -1; }
+          else { sortKey = col; sortDir = -1; }
+          updateSortChips();
+          applyFilters();
+        });
+      });
+      listEl.appendChild(header);
+
+      const FOLD_AT = 200;
+      visible.forEach((g, i) => {
+        const row = document.createElement('div');
+        row.className = 'list-row';
+        if (i >= FOLD_AT) row.classList.add('card-folded');
+        row.style.animationDelay = `${Math.min(i, 20) * 0.02}s`;
+
+        const vc  = fmtInlinePct(g.volChange);
+        const pct = fmtInlinePct(g.changePercent);
+
+        row.innerHTML = `
+          <div class="list-cell col-name">${escHtml(g.name)}</div>
+          <div class="list-cell col-num">${g.latestVol3d || '—'}</div>
+          <div class="list-cell col-badge"><span class="inline-badge ${vc.cls}">${vc.text}</span></div>
+          <div class="list-cell col-num">${g.latestPrice > 0 ? '¥' + formatPrice(g.latestPrice) : '—'}</div>
+          <div class="list-cell col-badge"><span class="inline-badge ${pct.cls}">${pct.text}</span></div>
+          <div class="list-cell col-num">${g.latest30d > 0 ? '¥' + formatPrice(g.latest30d) : '—'}</div>
+          <div class="list-cell col-num">${g.latest365d > 0 ? '¥' + formatPrice(g.latest365d) : '—'}</div>
+          <div class="list-cell col-num">${g.latestVol30d || '—'}</div>
+        `;
+        row.addEventListener('click', () => openDetailModal(g));
+        listEl.appendChild(row);
+      });
+
+      if (visible.length > FOLD_AT) {
+        const btn = document.createElement('div');
+        btn.className = 'list-fold-btn';
+        btn.textContent = `展开全部 ${visible.length} 款 ▼`;
+        btn.addEventListener('click', () => {
+          listEl.querySelectorAll('.card-folded').forEach(r => r.classList.remove('card-folded'));
+          btn.remove();
+        });
+        listEl.appendChild(btn);
+      }
+    }
+
+    /* ─── Sort chips sync ─── */
+    function updateSortChips() {
+      document.querySelectorAll('.sort-chip').forEach(chip => {
+        const col = chip.dataset.col;
+        const arrow = chip.querySelector('.sort-arrow');
+        if (col === sortKey) {
+          chip.classList.add('active');
+          if (arrow) arrow.textContent = sortDir === -1 ? '↓' : '↑';
+        } else {
+          chip.classList.remove('active');
+          if (arrow) arrow.textContent = '';
+        }
+      });
+    }
+
+    function showError(msg) {
+      showState('error');
+      document.getElementById('error-msg').textContent = msg;
+      document.getElementById('error-sub').textContent = '';
+    }
+
+    /* ─── Detail Modal ─── */
+    function fmtYoy(v) {
+      if (v === null || v === undefined || v === 0) return '—';
+      const pct = (v * 100).toFixed(2);
+      return v >= 0 ? `+${pct}%` : `${pct}%`;
+    }
+    function yoyClass(v) {
+      if (!v) return '';
+      return v > 0 ? 'up' : 'down';
+    }
+
+    function openDetailModal(g) {
+      const d = g.latestAlldays;
+      if (!d) return;
+
+      document.getElementById('modal-title').textContent = g.name;
+
+      const body = document.getElementById('modal-body');
+      body.innerHTML = `
+        <div class="modal-section">
+          <div class="modal-section-title">基本信息</div>
+          <div class="modal-fields">
+            <div class="modal-field">
+              <span class="modal-field-label">SPU ID</span>
+              <span class="modal-field-value">${g.spu_id}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">交易类型</span>
+              <span class="modal-field-value">${g.trading_type}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">地区</span>
+              <span class="modal-field-value">${d.region || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">最新数据日期</span>
+              <span class="modal-field-value">${d.dateKey}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <div class="modal-section-title">均价 · 同比</div>
+          <div class="modal-fields">
+            <div class="modal-field">
+              <span class="modal-field-label">1日均价</span>
+              <span class="modal-field-value">¥${formatPrice(d.avg_price_1days)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">1日均价同比</span>
+              <span class="modal-field-value ${yoyClass(d.avg_price_1days_yoy)}">${fmtYoy(d.avg_price_1days_yoy)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">3日均价</span>
+              <span class="modal-field-value">¥${formatPrice(d.avg_price_3days)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">3日均价同比</span>
+              <span class="modal-field-value ${yoyClass(d.avg_price_3days_yoy)}">${fmtYoy(d.avg_price_3days_yoy)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">30日均价</span>
+              <span class="modal-field-value">¥${formatPrice(d.avg_price_30days)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">30日均价同比</span>
+              <span class="modal-field-value ${yoyClass(d.avg_price_30days_yoy)}">${fmtYoy(d.avg_price_30days_yoy)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">60日均价</span>
+              <span class="modal-field-value">¥${formatPrice(d.avg_price_60days)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">60日均价同比</span>
+              <span class="modal-field-value ${yoyClass(d.avg_price_60days_yoy)}">${fmtYoy(d.avg_price_60days_yoy)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">365日均价</span>
+              <span class="modal-field-value">¥${formatPrice(d.avg_price_365days)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">365日均价同比</span>
+              <span class="modal-field-value ${yoyClass(d.avg_price_365days_yoy)}">${fmtYoy(d.avg_price_365days_yoy)}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">历史均价</span>
+              <span class="modal-field-value">¥${formatPrice(d.avg_price_alldays)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <div class="modal-section-title">成交量 · 上架量</div>
+          <div class="modal-fields">
+            <div class="modal-field">
+              <span class="modal-field-label">1日成交量</span>
+              <span class="modal-field-value">${d.trading_volume_1days || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">3日成交量</span>
+              <span class="modal-field-value">${d.trading_volume_3days || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">30日成交量</span>
+              <span class="modal-field-value">${d.trading_volume_30days || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">365日成交量</span>
+              <span class="modal-field-value">${d.trading_volume_365days || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">历史成交量</span>
+              <span class="modal-field-value">${d.trading_volume_alldays || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">1日上架量</span>
+              <span class="modal-field-value">${d.product_quantity_1days || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">3日上架量</span>
+              <span class="modal-field-value">${d.product_quantity_3days || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">30日上架量</span>
+              <span class="modal-field-value">${d.product_quantity_30days || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">365日上架量</span>
+              <span class="modal-field-value">${d.product_quantity_365days || '—'}</span>
+            </div>
+            <div class="modal-field">
+              <span class="modal-field-label">历史上架量</span>
+              <span class="modal-field-value">${d.product_quantity_alldays || '—'}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-overlay').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.add('hidden');
+    }
+
+    /* ─── Event Bindings ─── */
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+
+    // 视图切换
+    document.getElementById('view-grid').addEventListener('click', () => {
+      if (activeView === 'grid') return;
+      activeView = 'grid';
+      sortKey = 'latestVol3d'; sortDir = -1;
+      document.getElementById('view-grid').classList.add('active');
+      document.getElementById('view-list').classList.remove('active');
+      document.getElementById('list-toolbar').classList.remove('visible');
+      if (allData.length > 0) applyFilters();
+    });
+    document.getElementById('view-list').addEventListener('click', () => {
+      if (activeView === 'list') return;
+      activeView = 'list';
+      document.getElementById('view-list').classList.add('active');
+      document.getElementById('view-grid').classList.remove('active');
+      document.getElementById('list-toolbar').classList.add('visible');
+      updateSortChips();
+      if (allData.length > 0) applyFilters();
+    });
+
+    // Sort chips
+    document.querySelectorAll('.sort-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const col = chip.dataset.col;
+        if (sortKey === col) { sortDir *= -1; }
+        else { sortKey = col; sortDir = -1; }
+        updateSortChips();
+        if (allData.length > 0) applyFilters();
+      });
+    });
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-overlay').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    // Tab switch
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeType = btn.dataset.type;
+        if (allData.length > 0) applyFilters();
+      });
+    });
+
+    // Search debounced
+    let searchTimer = null;
+    document.getElementById('search-input').addEventListener('input', e => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        searchQuery = e.target.value;
+        if (allData.length > 0) applyFilters();
+      }, 250);
+    });
+
+    /* ─── Init ─── */
+    loadFromJson();
+  </script>
+</body>
+</html>
